@@ -12,6 +12,18 @@ module.exports = (req, res) => {
     return;
   }
 
+  // ⚠️ CORS para permitir otros dominios
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "*");
+
+  // ✅ Si es preflight (OPTIONS), respondé sin continuar
+  if (req.method === "OPTIONS") {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
+
   const parsedUrl = url.parse(targetUrl);
   const client = targetUrl.startsWith("https") ? https : http;
 
