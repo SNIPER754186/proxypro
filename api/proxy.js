@@ -12,23 +12,24 @@ module.exports = (req, res) => {
     return;
   }
 
-  const options = url.parse(targetUrl);
-  options.method = req.method;
-
-  // Reenviar headers importantes (especialmente Range para adelantar)
-  options.headers = {
-    "User-Agent": req.headers["user-agent"] || "",
-    "Referer": req.headers["referer"] || "",
-    "Range": req.headers["range"] || "",
-    "Accept": req.headers["accept"] || "*/*",
-    "Origin": req.headers["origin"] || ""
-  };
-
+  const parsedUrl = url.parse(targetUrl);
   const client = targetUrl.startsWith("https") ? https : http;
 
-  const proxyReq = client.request(options, (proxyRes) => {
-    // Reenviar todos los headers
-    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+  const proxyReq = client.request({
+    ...parsedUrl,
+    method: req.method,
+    headers: {
+      ...req.headers, // reenviamos todo
+      host: parsedUrl.host // importante para evitar conflictos
+    }
+  }, (proxyRes) => {
+    // Si el servidor de origen responde con 206 y hay Range, pasarlo tal cual
+    if (req.headers.range && proxyRes.statusCode === 200 && proxyRes.headers["content-range"]) {
+      res.writeHead(206, proxyRes.headers); // Forzar 206 si hay rango
+    } else {
+      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    }
+
     proxyRes.pipe(res);
   });
 
@@ -37,5 +38,5 @@ module.exports = (req, res) => {
     res.end("Proxy error: " + err.message);
   });
 
-  req.pipe(proxyReq); // Reenviar el body si lo hay
+  req.pipe(proxyReq);
 };
