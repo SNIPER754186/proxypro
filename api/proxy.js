@@ -8,17 +8,34 @@ module.exports = (req, res) => {
 
   if (!targetUrl) {
     res.statusCode = 400;
-    res.end("URL is required");
+    res.end("Missing 'url' parameter");
     return;
   }
 
+  const options = url.parse(targetUrl);
+  options.method = req.method;
+
+  // Reenviar headers importantes (especialmente Range para adelantar)
+  options.headers = {
+    "User-Agent": req.headers["user-agent"] || "",
+    "Referer": req.headers["referer"] || "",
+    "Range": req.headers["range"] || "",
+    "Accept": req.headers["accept"] || "*/*",
+    "Origin": req.headers["origin"] || ""
+  };
+
   const client = targetUrl.startsWith("https") ? https : http;
 
-  client.get(targetUrl, (proxyRes) => {
+  const proxyReq = client.request(options, (proxyRes) => {
+    // Reenviar todos los headers
     res.writeHead(proxyRes.statusCode, proxyRes.headers);
     proxyRes.pipe(res);
-  }).on("error", (err) => {
-    res.statusCode = 500;
-    res.end("Error: " + err.message);
   });
+
+  proxyReq.on("error", (err) => {
+    res.statusCode = 500;
+    res.end("Proxy error: " + err.message);
+  });
+
+  req.pipe(proxyReq); // Reenviar el body si lo hay
 };
